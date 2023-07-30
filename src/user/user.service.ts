@@ -15,6 +15,11 @@ export class UserService {
     return users;
   }
 
+  async getAllSubscribedUsers(): Promise<User[]> {
+    // Find all users where isSubscribed set to true
+    return this.userModel.find({ isSubscribed: true }).exec();
+  }
+
   async findUser(chatId: number): Promise<User> {
     const user = await this.userModel.findOne({ chatId });
     // if (!user) throw new NotFoundException(`Invalid chatID!`);
@@ -27,12 +32,35 @@ export class UserService {
     return newUser;
   }
 
-  async update(chatId: number, user: User): Promise<User> {
+  async updateSubscriptionStatus(
+    chatId: number,
+    isSubscribed: boolean,
+  ): Promise<User> {
     return await this.userModel.findOneAndUpdate(
       { chatId },
-      { $set: { isSubscribed: user.isSubscribed } },
+      { $set: { isSubscribed: isSubscribed } },
       { new: true },
     );
+  }
+
+  async updateLocation(
+    chatId: number,
+    location: [number, number],
+  ): Promise<User | null> {
+    // Find the user in the database using the chatId
+    const user = await this.userModel.findOne({ chatId });
+
+    if (user) {
+      // Update the user's location
+      user.location = location;
+
+      // Save the updated user in the database
+      const updatedUser = await user.save();
+
+      return updatedUser;
+    }
+
+    return null; // Return null if the user is not found
   }
 
   async delete(chatId: number): Promise<User> {

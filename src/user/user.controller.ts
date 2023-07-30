@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  NotFoundException,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { User } from './user.schema';
@@ -17,6 +18,11 @@ export class UserController {
   @Get('all')
   async getAllUsers(): Promise<User[]> {
     return this.userService.findAllUsers();
+  }
+
+  @Get('subscribers')
+  async getAllSubscribedUsers(): Promise<User[]> {
+    return this.userService.getAllSubscribedUsers();
   }
 
   @Get(':chatId')
@@ -35,24 +41,36 @@ export class UserController {
       chatId: number;
       isSubscribed: boolean;
       isAdmin: boolean;
+      location: [number, number];
     },
   ): Promise<User> {
     return this.userService.add(user);
   }
 
-  @Put('update/:chatId')
-  async updateUser(
+  @Put('updatesubscriptionstatus/:chatId')
+  async updateSubscriptionStatus(
     @Param('chatId')
     chatId: number,
-    @Body()
-    user: {
-      username: string;
-      chatId: number;
-      isSubscribed: boolean;
-      isAdmin: boolean;
-    },
+    @Body('isSubscribed') isSubscribed: boolean,
   ): Promise<User> {
-    return this.userService.update(chatId, user);
+    return this.userService.updateSubscriptionStatus(chatId, isSubscribed);
+  }
+
+  @Put('updatelocation')
+  async updateLocation(
+    @Body('chatId') chatId: number,
+    @Body('location') location: [number, number],
+  ): Promise<User | null> {
+    const updatedLocation = await this.userService.updateLocation(
+      chatId,
+      location,
+    );
+
+    if (updatedLocation) {
+      return updatedLocation;
+    } else {
+      throw new NotFoundException('User not found');
+    }
   }
 
   @Delete('delete/:chatId')

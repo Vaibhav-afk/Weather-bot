@@ -15,6 +15,13 @@ export class User {
 
   @Prop({ required: false, default: false })
   isAdmin: boolean;
+
+  @Prop({
+    required: true,
+    type: [Number], // An array of two numbers [latitude, longitude]
+    default: [0, 0], // Default location [0, 0]
+  })
+  location: [number, number];
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

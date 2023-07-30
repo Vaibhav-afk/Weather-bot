@@ -3,6 +3,7 @@ import { WeatherService } from '../weather/weather.service';
 import { UserService } from '../user/user.service';
 import { Telegraf, session } from 'telegraf';
 import axios from 'axios';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class TelegramService {
@@ -19,11 +20,12 @@ export class TelegramService {
     this.bot.command('start', this.handleStartCommand.bind(this));
     this.bot.command('subscribe', this.handleSubscribeCommand.bind(this));
     this.bot.command('unsubscribe', this.handleUnsubscribeCommand.bind(this));
-    this.bot.command('weathernow', this.getWeatherForCity.bind(this));
+    this.bot.command('updateLocation', this.handleLocationUpdate.bind(this));
     this.bot.hears(/.*/, this.handleMessage.bind(this));
-    this.bot.hears('location', this.handleLocation.bind(this));
+    // this.bot.hears('location', this.handleLocation.bind(this));
 
     this.bot.launch();
+    this.scheduleDailyWeatherUpdate();
   }
 
   private async handleStartCommand(ctx: any) {
@@ -39,12 +41,13 @@ export class TelegramService {
       ctx.session = { chatId, awaitingUsername: true };
     } else {
       const welcomeMessage =
-        `Hello, ${existingUser.username}! Welcome back to the Weather Bot!\n\n` +
-        'Use the /subscribe command to get daily weather updates.\n' +
+        `Hello, ${existingUser.username}! 👋 \nWelcome back to the Weather Bot 🌤️🌈\n\n` +
+        'Use the /subscribe command to get daily weather updates.\nUse the /updateLocation command to update your location.\n' +
         (existingUser.isSubscribed
           ? 'Use the /unsubscribe command to unsubscribe from daily weather updates.'
           : '') +
         `\n`;
+
       ctx.reply(welcomeMessage);
     }
   }
@@ -57,22 +60,32 @@ export class TelegramService {
 
     // Check if the user is awaiting a username input
     if (ctx.session.awaitingUsername) {
+      ctx.session.username = messageText; //username
+
+      ctx.reply(
+        `Hello, ${messageText}! Welcome to the Weather Bot!\n\n` +
+          'Please share your live location to update it. Click on attachment option, choose "Location," and share your location.',
+      );
+
+      ctx.session.awaitingUsername = false;
+      ctx.session.awaitingLocation = true;
+    } else if (ctx.session.awaitingLocation) {
+      const { latitude, longitude } = ctx.message.location;
+      const username = ctx.session.username;
+
       await this.userService.add({
-        username: messageText,
+        username: username,
         chatId: chatId,
         isSubscribed: false,
         isAdmin: false,
-      }); // Create a new user with chatID and username
+        location: [latitude, longitude],
+      });
 
-      // Respond to the user with a welcome message or any other response
-      const welcomeMessage =
-        `Hello, ${messageText}! Welcome to the Weather Bot!\n\n` +
-        'Use the /subscribe command to get daily weather updates.';
+      ctx.reply(
+        'Thankyou! for providing location 😊. You can now use the /subscribe command to get daily weather updates.🌈🌤️',
+      );
 
-      // Set awaitingUsername to false in the context to avoid processing the next message as a username input
-      ctx.session.awaitingUsername = false;
-
-      ctx.reply(welcomeMessage);
+      ctx.session.awaitingLocation = false;
     }
   }
 
@@ -83,9 +96,11 @@ export class TelegramService {
     const user = await this.userService.findUser(chatId);
 
     if (user) {
-      await this.userService.update(chatId, { ...user, isSubscribed: true });
+      await this.userService.updateSubscriptionStatus(chatId, true);
 
-      ctx.reply('You are now subscribed for daily weather updates! 🌞🌦️');
+      ctx.reply(
+        'You are now subscribed for daily weather updates! 🌞🌦️\n\nYou can unsubscribe anytime using /unsubscribe command',
+      );
     } else {
       // When the user is not found in the database
       ctx.reply(
@@ -95,13 +110,12 @@ export class TelegramService {
   }
 
   private async handleUnsubscribeCommand(ctx: any) {
-    const chatId = ctx.from.id; // Get the user's chat ID
+    const chatId = ctx.from.id; // user's chat ID
 
-    // Find the user in the database
     const user = await this.userService.findUser(chatId);
 
     if (user) {
-      await this.userService.update(chatId, { ...user, isSubscribed: false });
+      await this.userService.updateSubscriptionStatus(chatId, false);
 
       ctx.reply('You are now unsubscribed from daily weather updates😔🌦️');
     } else {
@@ -138,24 +152,69 @@ export class TelegramService {
     return 'Unknown City';
   }
 
-  private async handleLocation(ctx: any) {
-    const { latitude, longitude } = ctx.message.location;
-    const city = await this.getCityFromCoordinates(latitude, longitude);
+  private async handleLocationUpdate(ctx: any) {
+    const chatId = ctx.from.id;
 
-    this.getWeatherForCity(city)
-      .then((weatherData) => {
-        ctx.reply(
-          `Weather for ${city}:\nTemperature: ${weatherData.main.temp}°C`,
-        );
-      })
-      .catch((error) => {
-        ctx.reply('Failed to fetch weather data!');
-      });
+    // Request the user to share their live location
+    ctx.reply(
+      'Please share your live location to update it.\n\nClick on attachment 📎 option, choose "Location", and share your location.',
+    );
+
+    // Store the chatId in the session to handle the next message with the location
+    ctx.session = { chatId, awaitingLocation: true };
+
+    console.log('first ctx:' + ctx.message.location + '\n');
+    // Check if the user has already shared their location
+    if (ctx.message.location) {
+      console.log('second ctx:' + ctx.message.location + '\n');
+      // Call handleLocationUpdate to process the location immediately
+      await this.handleUpdate(ctx);
+    }
   }
 
-  private async getWeatherForCity(city: string): Promise<any> {
-    //fetching weather data from weather module
-    const weatherData = await this.weatherService.getWeather(city);
-    return weatherData;
+  private async handleUpdate(ctx: any) {
+    console.log(ctx.session.awaitingLocation + '\n');
+    if (ctx.session && ctx.session.awaitingLocation) {
+      const chatId = ctx.from.id;
+      const { latitude, longitude } = ctx.message.location;
+
+      // Update the user's location in the context
+      ctx.session.location = { latitude, longitude };
+      
+      // Update the user's location in the database
+      await this.userService.updateLocation(chatId, [latitude, longitude]);
+      
+      ctx.session.awaitingLocation = false;
+      
+      // Respond to the user with a confirmation message
+      ctx.reply('Your location has been updated successfully✨');
+    }
+  }
+
+  // @Cron(CronExpression.EVERY_DAY_AT_9AM) // Schedule the task to run every day at 9 AM.
+  private async scheduleDailyWeatherUpdate() {
+    const subscribedUsers = await this.userService.getAllSubscribedUsers();
+
+    for (const user of subscribedUsers) {
+      const [latitude, longitude] = user.location;
+      const city = await this.getCityFromCoordinates(latitude, longitude);
+
+      try {
+        const weatherData = await this.weatherService.getWeather(city);
+        const weatherUpdateMessage = `Weather for ${city}:\nTemperature: ${weatherData.main.temp}°C`;
+        this.sendMessage(user.chatId, weatherUpdateMessage);
+      } catch (error) {
+        console.error('Failed to fetch weather data:', error.message);
+      }
+    }
+  }
+
+  // Helper method to send a message to a user
+  async sendMessage(chatId: number, message: string) {
+    try {
+      await this.bot.telegram.sendMessage(chatId, message);
+    } catch (error) {
+      console.error('Failed to send message:', error.message);
+    }
   }
 }
