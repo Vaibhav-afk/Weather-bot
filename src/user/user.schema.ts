@@ -8,7 +8,13 @@ export class User {
   username: string;
 
   @Prop({ required: true, unique: true })
-  phone: number;
+  chatId: number;
+
+  @Prop({ required: true, default: false })
+  isSubscribed: boolean;
+
+  @Prop({ required: false, default: false })
+  isAdmin: boolean;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

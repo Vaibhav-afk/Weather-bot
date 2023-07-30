@@ -19,12 +19,12 @@ export class UserController {
     return this.userService.findAllUsers();
   }
 
-  @Get(':userId')
+  @Get(':chatId')
   async getSpecificUser(
-    @Param('userId')
-    userId: string,
+    @Param('chatId')
+    chatId: number,
   ): Promise<User> {
-    return this.userService.findUser(userId);
+    return this.userService.findUser(chatId);
   }
 
   @Post()
@@ -32,30 +32,34 @@ export class UserController {
     @Body()
     user: {
       username: string;
-      phone: number;
+      chatId: number;
+      isSubscribed: boolean;
+      isAdmin: boolean;
     },
   ): Promise<User> {
     return this.userService.add(user);
   }
 
-  @Put('update/:userId')
+  @Put('update/:chatId')
   async updateUser(
-    @Param('userId')
-    userId: string,
+    @Param('chatId')
+    chatId: number,
     @Body()
     user: {
       username: string;
-      phone: number;
+      chatId: number;
+      isSubscribed: boolean;
+      isAdmin: boolean;
     },
   ): Promise<User> {
-    return this.userService.update(userId, user);
+    return this.userService.update(chatId, user);
   }
 
-  @Delete('delete/:userId')
+  @Delete('delete/:chatId')
   async deleteUser(
     @Param()
-    userId: string,
+    chatId: number,
   ): Promise<User> {
-    return this.userService.delete(userId);
+    return this.userService.delete(chatId);
   }
 }

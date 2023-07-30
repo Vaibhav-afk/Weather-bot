@@ -15,9 +15,10 @@ export class UserService {
     return users;
   }
 
-  async findUser(userId: string): Promise<User> {
-    const user = await this.userModel.findById(userId);
-    if (!user) throw new NotFoundException(`Invalid userID!`);
+  async findUser(chatId: number): Promise<User> {
+    const user = await this.userModel.findOne({ chatId });
+    // if (!user) throw new NotFoundException(`Invalid chatID!`);
+    if (!user) return null;
     return user;
   }
 
@@ -26,14 +27,15 @@ export class UserService {
     return newUser;
   }
 
-  async update(userId: string, user: User): Promise<User> {
-    return await this.userModel.findByIdAndUpdate(userId, user, {
-      new: true,
-      runValidators: true,
-    });
+  async update(chatId: number, user: User): Promise<User> {
+    return await this.userModel.findOneAndUpdate(
+      { chatId },
+      { $set: { isSubscribed: user.isSubscribed } },
+      { new: true },
+    );
   }
 
-  async delete(userId: string): Promise<User> {
-    return await this.userModel.findByIdAndDelete(userId);
+  async delete(chatId: number): Promise<User> {
+    return await this.userModel.findByIdAndDelete(chatId);
   }
 }
