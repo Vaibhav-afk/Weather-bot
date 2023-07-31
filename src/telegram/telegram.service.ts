@@ -163,29 +163,28 @@ export class TelegramService {
     // Store the chatId in the session to handle the next message with the location
     ctx.session = { chatId, awaitingLocation: true };
 
-    console.log('first ctx:' + ctx.message.location + '\n');
-    // Check if the user has already shared their location
-    if (ctx.message.location) {
-      console.log('second ctx:' + ctx.message.location + '\n');
-      // Call handleLocationUpdate to process the location immediately
-      await this.handleUpdate(ctx);
-    }
+    this.bot.on('message', (ctx: any) => {
+      // Check if the message has an attachment and it is a location
+      if (ctx.message && ctx.message.location) {
+        this.handleUpdate(ctx);
+      }
+    });
+
   }
 
   private async handleUpdate(ctx: any) {
-    console.log(ctx.session.awaitingLocation + '\n');
     if (ctx.session && ctx.session.awaitingLocation) {
       const chatId = ctx.from.id;
       const { latitude, longitude } = ctx.message.location;
 
       // Update the user's location in the context
       ctx.session.location = { latitude, longitude };
-      
+
       // Update the user's location in the database
       await this.userService.updateLocation(chatId, [latitude, longitude]);
-      
+
       ctx.session.awaitingLocation = false;
-      
+
       // Respond to the user with a confirmation message
       ctx.reply('Your location has been updated successfully✨');
     }
