@@ -60,18 +60,33 @@ export class TelegramService {
     // Check if the user is awaiting a username input
     if (ctx.session.awaitingUsername) {
       ctx.session.username = messageText; //username
+      const username = ctx.session.username;
 
       ctx.reply(
         `Hello, ${messageText}! Welcome to the Weather Bot!\n\n` +
-          'Please share your live location to update it. Click on attachment option, choose "Location," and share your location.',
+          'Please share your live location to update it.\n\nClick on attachment 📎 option, choose "Location", and share your location.',
       );
 
       ctx.session.awaitingUsername = false;
-      ctx.session.awaitingLocation = true;
-    } else if (ctx.session.awaitingLocation) {
-      const { latitude, longitude } = ctx.message.location;
-      const username = ctx.session.username;
+      ctx.session = { chatId, awaitingLocation: true };
+      ctx.session.username;
 
+      this.bot.on('message', async (ctx: any) => {
+        // Check if the message has an attachment and it is a location
+        if (ctx.message && ctx.message.location) {
+          this.addNewUser(ctx, username);
+        }
+      });
+    }
+  }
+
+  private async addNewUser(ctx: any, username: string) {
+    console.log(username);
+    if (ctx.session && ctx.session.awaitingLocation) {
+      const chatId = ctx.from.id;
+      const { latitude, longitude } = ctx.message.location;
+
+      // adding new user to the database
       await this.userService.add({
         username: username,
         chatId: chatId,
@@ -80,11 +95,12 @@ export class TelegramService {
         location: [latitude, longitude],
       });
 
-      ctx.reply(
-        'Thankyou! for providing location 😊. You can now use the /subscribe command to get daily weather updates.🌈🌤️',
-      );
-
       ctx.session.awaitingLocation = false;
+
+      // Respond to the user with a confirmation message
+      ctx.reply(
+        'Thankyou! for providing location 😊.\n\nYou can now use the /subscribe command to get daily weather updates.🌈🌤️',
+      );
     }
   }
 
@@ -161,6 +177,8 @@ export class TelegramService {
 
     // Store the chatId in the session to handle the next message with the location
     ctx.session = { chatId, awaitingLocation: true };
+
+    console.log(ctx.message);
 
     this.bot.on('message', (ctx: any) => {
       // Check if the message has an attachment and it is a location
