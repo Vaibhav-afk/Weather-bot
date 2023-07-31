@@ -21,6 +21,7 @@ export class TelegramService {
     this.bot.command('subscribe', this.handleSubscribeCommand.bind(this));
     this.bot.command('unsubscribe', this.handleUnsubscribeCommand.bind(this));
     this.bot.command('updateLocation', this.handleLocationUpdate.bind(this));
+    // this.bot.command('getweather', this.scheduleDailyWeatherUpdate.bind(this));
     this.bot.hears(/.*/, this.handleMessage.bind(this));
     // this.bot.hears('location', this.handleLocation.bind(this));
 
@@ -42,12 +43,10 @@ export class TelegramService {
     } else {
       const welcomeMessage =
         `Hello, ${existingUser.username}! 👋 \nWelcome back to the Weather Bot 🌤️🌈\n\n` +
-        'Use the /subscribe command to get daily weather updates.\nUse the /updateLocation command to update your location.\n' +
         (existingUser.isSubscribed
-          ? 'Use the /unsubscribe command to unsubscribe from daily weather updates.'
-          : '') +
-        `\n`;
-
+          ? 'Use the /unsubscribe command to unsubscribe from daily weather updates.\n\n'
+          : 'Use the /subscribe command to get daily weather updates.\n\n') +
+        'Use the /updateLocation command to update your location.\n';
       ctx.reply(welcomeMessage);
     }
   }
@@ -169,7 +168,6 @@ export class TelegramService {
         this.handleUpdate(ctx);
       }
     });
-
   }
 
   private async handleUpdate(ctx: any) {
@@ -190,9 +188,11 @@ export class TelegramService {
     }
   }
 
-  // @Cron(CronExpression.EVERY_DAY_AT_9AM) // Schedule the task to run every day at 9 AM.
+  @Cron('0 0 9 30 * *') // Schedule the task to run every day at 9 AM.
   private async scheduleDailyWeatherUpdate() {
     const subscribedUsers = await this.userService.getAllSubscribedUsers();
+
+    console.log(subscribedUsers.length);
 
     for (const user of subscribedUsers) {
       const [latitude, longitude] = user.location;
@@ -200,7 +200,9 @@ export class TelegramService {
 
       try {
         const weatherData = await this.weatherService.getWeather(city);
-        const weatherUpdateMessage = `Weather for ${city}:\nTemperature: ${weatherData.main.temp}°C`;
+        const weatherUpdateMessage = `Weather for ${city}:\nTemperature: ${
+          weatherData.main.temp - 273.15
+        }°C`;
         this.sendMessage(user.chatId, weatherUpdateMessage);
       } catch (error) {
         console.error('Failed to fetch weather data:', error.message);
