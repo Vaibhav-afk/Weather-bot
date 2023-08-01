@@ -206,7 +206,7 @@ export class TelegramService {
     }
   }
 
-  @Cron('0 0 9 30 * *') // Schedule the task to run every day at 9 AM.
+  // @Cron('0 0 9 30 * *') // Schedule the task to run every day at 9 AM.
   private async scheduleDailyWeatherUpdate() {
     const subscribedUsers = await this.userService.getAllSubscribedUsers();
 
